@@ -1,192 +1,199 @@
-package com.example.and103_buoi1;
 
+package com.example.and103_buoi1;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
+import android.widget.AdapterView;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.Toast;
-import androidx.annotation.NonNull;
+
+import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
-
-import java.util.ArrayList;
 import java.util.List;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class Home extends AppCompatActivity {
-    private RecyclerView recyclerView;
-    private CityAdapter cityAdapter;
-    private List<City> cityList;
-    private FirebaseFirestore db;
+
+    ListView lvMain;
+    List<CarModel> listCarModel;
+
+    CarAdapter carAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_home);
-
-        recyclerView = findViewById(R.id.recyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-
-        cityList = new ArrayList<>();
-        cityAdapter = new CityAdapter(cityList, new CityAdapter.CityClickListener() {
-            @Override
-            public void onEditClick(City city, int position) {
-                showEditDialog(city, position);
-            }
-
-            @Override
-            public void onDeleteClick(City city, int position) {
-                showDeleteDialog(city, position);
-            }
-
-        });
-        Button btnAddCity = findViewById(R.id.btnAddCity);
-        btnAddCity.setOnClickListener(v -> showAddDialog());
-
-
-        recyclerView.setAdapter(cityAdapter); // Sửa lỗi
-
-        db = FirebaseFirestore.getInstance();
-        loadCitiesFromFirestore();
-    }
-    private void showAddDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Thêm thành phố");
-
-        View view = LayoutInflater.from(this).inflate(R.layout.dialog_edit_city, null);
-        builder.setView(view);
-
-        EditText edtFullName = view.findViewById(R.id.edtFullName);
-        EditText edtCountry = view.findViewById(R.id.edtCountry);
-        EditText edtPopulation = view.findViewById(R.id.edtPopulation);
-
-        builder.setPositiveButton("Thêm", (dialog, which) -> {
-            String fullName = edtFullName.getText().toString().trim();
-            String country = edtCountry.getText().toString().trim();
-            String populationStr = edtPopulation.getText().toString().trim();
-
-            if (fullName.isEmpty() || country.isEmpty() || populationStr.isEmpty()) {
-                Toast.makeText(this, "Điền đầy đủ thông tin!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            int population = Integer.parseInt(populationStr);
-            City newCity = new City(fullName, country, population);
-
-
-            db.collection("cities")
-                    .add(newCity)
-                    .addOnSuccessListener(documentReference -> {
-                        newCity.setId(documentReference.getId());
-                        cityList.add(newCity);
-                        cityAdapter.notifyDataSetChanged();
-                        Toast.makeText(this, "thêm thành công!", Toast.LENGTH_SHORT).show();
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(this, "Thêm thất bại!", Toast.LENGTH_SHORT).show();
-                    });
-
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
         });
 
-        builder.setNegativeButton("Huỷ", null);
-        builder.show();
-    }
+        lvMain = findViewById(R.id.listviewMain);
 
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(APIService.DOMAIN)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
 
+        APIService apiService = retrofit.create(APIService.class);
 
+        Call<List<CarModel>> call = apiService.getCars();
 
-    private void showDeleteDialog(City city, int position) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Xoá")
-                .setMessage("Bạn có chắc muốn xoá thành phố này ? " + city.getFullName() + "?")
-                .setPositiveButton("Có", (dialog, which) -> {
-                    db.collection("cities").document(city.getId())
-                            .delete()
-                            .addOnSuccessListener(aVoid -> {
-                                cityList.remove(position);
-                                cityAdapter.notifyItemRemoved(position);
-                                Toast.makeText(this, "Xoá thành công", Toast.LENGTH_SHORT).show();
-                            })
-                            .addOnFailureListener(e -> {
-                                Toast.makeText(this, "Xoá thất bại", Toast.LENGTH_SHORT).show();
+        call.enqueue(new Callback<List<CarModel>>() {
+            @Override
+            public void onResponse(Call<List<CarModel>> call, Response<List<CarModel>> response) {
+                if (response.isSuccessful()) {
+                    listCarModel = response.body();
+
+                    carAdapter = new CarAdapter(getApplicationContext(), listCarModel);
+
+                    lvMain.setAdapter(carAdapter);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<CarModel>> call, Throwable t) {
+                Log.e("Main", t.getMessage());
+            }
+        });
+        lvMain.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> adapterView, View view, int position, long l) {
+                CarModel xeCanXoa = listCarModel.get(position);
+
+                // Tạo Dialog xác nhận trước khi xóa
+                new AlertDialog.Builder(Home.this)
+                        .setTitle("Xác nhận xóa")
+                        .setMessage("Bạn có chắc chắn muốn xóa xe này không?")
+                        .setPositiveButton("Xóa", (dialog, which) -> {
+                            // Gọi API xóa xe
+                            Call<Void> callXoaXe = apiService.xoaXe(xeCanXoa.get_id());
+
+                            callXoaXe.enqueue(new Callback<Void>() {
+                                @Override
+                                public void onResponse(Call<Void> call, Response<Void> response) {
+                                    if (response.isSuccessful()) {
+                                        listCarModel.remove(position);
+                                        carAdapter.notifyDataSetChanged();
+                                        Toast.makeText(Home.this, "Xóa thành công", Toast.LENGTH_SHORT).show();
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Call<Void> call, Throwable t) {
+                                    Log.e("Main", t.getMessage());
+                                }
                             });
-                })
-                .setNegativeButton("Không", null)
-                .show();
-    }
+                        })
+                        .setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss()) // Đóng Dialog khi hủy
+                        .show();
 
-    private void showEditDialog(City city, int position) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Sửa");
-
-        View view = LayoutInflater.from(this).inflate(R.layout.dialog_edit_city, null);
-        builder.setView(view);
-
-        EditText edtFullName = view.findViewById(R.id.edtFullName);
-        EditText edtCountry = view.findViewById(R.id.edtCountry);
-        EditText edtPopulation = view.findViewById(R.id.edtPopulation);
-
-        // Gán dữ liệu cũ vào dialog
-        edtFullName.setText(city.getFullName());
-        edtCountry.setText(city.getCountry());
-        edtPopulation.setText(String.valueOf(city.getPopulation()));
-
-        builder.setPositiveButton("Lưu", (dialog, which) -> {
-            String updatedFullName = edtFullName.getText().toString().trim();
-            String updatedCountry = edtCountry.getText().toString().trim();
-            int updatedPopulation = Integer.parseInt(edtPopulation.getText().toString().trim());
-
-            if (updatedFullName.isEmpty() || updatedCountry.isEmpty()) {
-                Toast.makeText(this, "Điền đầy đủ thông tin", Toast.LENGTH_SHORT).show();
-                return;
+                return true; // Trả về true để xử lý sự kiện long click
             }
-
-            // Cập nhật vào Firestore
-            db.collection("cities").document(city.getId())
-                    .update("fullName", updatedFullName, "country", updatedCountry, "population", updatedPopulation)
-                    .addOnSuccessListener(aVoid -> {
-                        city.setFullName(updatedFullName);
-                        city.setCountry(updatedCountry);
-                        city.setPopulation(updatedPopulation);
-                        cityAdapter.notifyItemChanged(position);
-                        Toast.makeText(this, "Cập nhật thành công", Toast.LENGTH_SHORT).show();
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(this, "Cập nhật thất bại", Toast.LENGTH_SHORT).show();
-                    });
-
         });
 
-        builder.setNegativeButton("Huỷ", null);
-        builder.show();
-    }
 
 
+        findViewById(R.id.btn_add).setOnClickListener(v -> {
+            CarModel xe = new CarModel("Xe 1411", 2023, "Toyota", 1200,"");
 
+            Call<List<CarModel>> callAddXe = apiService.addCar(xe);
 
-    private void loadCitiesFromFirestore() {
-        db.collection("cities")
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    cityList.clear();
-                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                        City city = document.toObject(City.class);
-                        city.setId(document.getId()); // Lưu ID của Firestore
-                        cityList.add(city);
+            callAddXe.enqueue(new Callback<List<CarModel>>() {
+                @Override
+                public void onResponse(Call<List<CarModel>> call, Response<List<CarModel>> response) {
+                    if (response.isSuccessful()) {
+
+                        listCarModel.clear();
+
+                        listCarModel.addAll(response.body());
+
+                        carAdapter.notifyDataSetChanged();
                     }
-                    cityAdapter.notifyDataSetChanged();
-                    Toast.makeText(Home.this, "Dữ liệu đã tải thành công!", Toast.LENGTH_SHORT).show();
-                })
-                .addOnFailureListener(e -> {
-                    Log.e("Firestore", "Lỗi khi tải dữ liệu: " + e.getMessage());
-                    Toast.makeText(Home.this, "Lỗi tải dữ liệu!", Toast.LENGTH_SHORT).show();
-                });
-    }
+                }
 
+                @Override
+                public void onFailure(Call<List<CarModel>> call, Throwable t) {
+                    Log.e("Main", t.getMessage());
+                }
+            });
+        });
+        // Gọi API để cập nhật xe
+        lvMain.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                CarModel xeToEdit = listCarModel.get(position);
+
+                // Tạo View cho Dialog sửa thông tin xe
+                View dialogView = getLayoutInflater().inflate(R.layout.dialog_edit_car, null);
+                EditText edtName = dialogView.findViewById(R.id.edtName);
+                EditText edtNamSX = dialogView.findViewById(R.id.edtNamSX);
+                EditText edtHang = dialogView.findViewById(R.id.edtHang);
+                EditText edtGia = dialogView.findViewById(R.id.edtGia);
+
+                // Hiển thị dữ liệu hiện tại của xe trong các EditText
+                edtName.setText(xeToEdit.getTen());
+                edtNamSX.setText(String.valueOf(xeToEdit.getNamSX()));
+                edtHang.setText(xeToEdit.getHang());
+                edtGia.setText(String.valueOf(xeToEdit.getGia()));
+
+                new AlertDialog.Builder(Home.this)
+                        .setTitle("Sửa thông tin xe")
+                        .setView(dialogView)
+                        .setPositiveButton("Lưu", (dialog, which) -> {
+                            // Lấy dữ liệu từ EditText
+                            String newName = edtName.getText().toString();
+                            int newNamSX = Integer.parseInt(edtNamSX.getText().toString());
+                            String newHang = edtHang.getText().toString();
+                            double newGia = Double.parseDouble(edtGia.getText().toString());
+
+
+                            // Tạo đối tượng CarModel với dữ liệu đã thay đổi
+                            CarModel updatedCar = new CarModel(xeToEdit.get_id(), newName, newNamSX, newHang, newGia, xeToEdit.getAnh());
+
+
+                            // Gọi API cập nhật xe
+                            Call<List<CarModel>> callUpdateCar = apiService.updateCar(xeToEdit.get_id(), updatedCar);
+                            callUpdateCar.enqueue(new Callback<List<CarModel>>() {
+                                @Override
+                                public void onResponse(Call<List<CarModel>> call, Response<List<CarModel>> response) {
+                                    if (response.isSuccessful()) {
+                                        // Cập nhật danh sách xe trong adapter
+                                        listCarModel.clear();
+                                        listCarModel.addAll(response.body());
+                                        carAdapter.notifyDataSetChanged();
+                                        Toast.makeText(Home.this, "Cập nhật thành công", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        Toast.makeText(Home.this, "Cập nhật thất bại: " + response.message(), Toast.LENGTH_SHORT).show();
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Call<List<CarModel>> call, Throwable t) {
+                                    Toast.makeText(Home.this, "Lỗi kết nối: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        })
+                        .setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss())
+                        .show();
+            }
+        });
+
+
+
+
+    }
 }

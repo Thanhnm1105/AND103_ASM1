@@ -5,21 +5,27 @@
     android:padding="16dp">
 
     <EditText
-        android:id="@+id/edtFullName"
+        android:id="@+id/edtName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="City Name" />
+        android:hint="Tên xe" />
 
     <EditText
-        android:id="@+id/edtCountry"
+        android:id="@+id/edtNamSX"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Country" />
+        android:hint="Năm sản xuất" />
 
     <EditText
-        android:id="@+id/edtPopulation"
+        android:id="@+id/edtHang"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Population"
-        android:inputType="number" />
+        android:hint="Hãng xe" />
+
+    <EditText
+        android:id="@+id/edtGia"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Giá xe" />
+
 </LinearLayout>
